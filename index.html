@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>简历生成器</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="toolbar">
+      <div class="toolbar-brand">
+        <span class="brand-icon">◆</span>
+        <h1>简历生成器</h1>
+      </div>
+      <div class="toolbar-actions">
+        <button type="button" id="btn-preview" class="btn btn-secondary">预览</button>
+        <button type="button" id="btn-download" class="btn btn-primary">下载 PDF</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="panel panel-left">
+        <div class="panel-header">
+          <div class="add-menu-wrap">
+            <button type="button" id="btn-add-menu" class="btn btn-add" aria-label="增加要点" aria-expanded="false" aria-haspopup="true">增加要点</button>
+            <div class="add-menu" id="add-menu" hidden>
+                <button type="button" class="add-menu-item" data-type="education">教育背景</button>
+                <button type="button" class="add-menu-item" data-type="internship">实习经历</button>
+                <button type="button" class="add-menu-item" data-type="projects">项目经历</button>
+                <button type="button" class="add-menu-item" data-type="skills">专业技能</button>
+                <button type="button" class="add-menu-item" data-type="hobbies">兴趣爱好</button>
+              </div>
+            </div>
+        </div>
+
+        <div id="entry-form-area" class="entry-form-area" hidden>
+          <h3 class="form-type-title" id="form-type-title"></h3>
+          <form id="entry-form" class="entry-form"></form>
+        </div>
+
+        <div class="bullet-pool-section">
+          <h3 class="pool-title">要点库</h3>
+          <p class="pool-desc">点击要点可编辑，拖拽至右侧对应板块</p>
+          <div class="bullet-pool" id="bullet-pool">
+            <p class="pool-empty" id="pool-empty">暂无要点，点击「增加要点」添加</p>
+          </div>
+        </div>
+      </aside>
+
+      <section class="panel panel-right">
+        <div class="panel-header">
+          <h2>简历内容</h2>
+          <p class="panel-desc">填写基本信息，从左侧拖入各板块，可拖动调整顺序</p>
+        </div>
+
+        <div class="resume-editor" id="resume-editor">
+          <div class="basic-info">
+            <div class="field-row">
+              <label>
+                <span>姓名</span>
+                <input type="text" id="field-name" placeholder="张三" data-field="name">
+              </label>
+              <label>
+                <span>所在地</span>
+                <input type="text" id="field-location" placeholder="北京" data-field="location">
+              </label>
+            </div>
+            <div class="field-row">
+              <label>
+                <span>邮箱</span>
+                <input type="email" id="field-email" placeholder="email@example.com" data-field="email">
+              </label>
+              <label>
+                <span>电话</span>
+                <input type="tel" id="field-phone" placeholder="138 0000 0000" data-field="phone">
+              </label>
+            </div>
+          </div>
+
+          <div id="resume-sections"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal" id="preview-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>简历预览</h2>
+        <button type="button" class="btn-close" data-close aria-label="关闭">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="preview-content" class="preview-paper"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close>关闭</button>
+        <button type="button" id="btn-download-modal" class="btn btn-primary">下载 PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
