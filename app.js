@@ -69,6 +69,15 @@
     location: document.getElementById('field-location'),
   };
 
+  let currentUser = null;
+
+  const authScreen = document.getElementById('auth-screen');
+  const appEl = document.getElementById('app');
+  const authForm = document.getElementById('auth-form');
+  const authError = document.getElementById('auth-error');
+  const userBadge = document.getElementById('user-badge');
+  const toastEl = document.getElementById('toast');
+
   const addMenuBtn = document.getElementById('btn-add-menu');
   const addMenu = document.getElementById('add-menu');
   const entryFormArea = document.getElementById('entry-form-area');
@@ -79,6 +88,135 @@
   const resumeSections = document.getElementById('resume-sections');
   const previewModal = document.getElementById('preview-modal');
   const previewContent = document.getElementById('preview-content');
+
+  // --- Auth ---
+
+  function showToast(message, duration = 2200) {
+    toastEl.textContent = message;
+    toastEl.hidden = false;
+    clearTimeout(showToast._timer);
+    showToast._timer = setTimeout(() => {
+      toastEl.hidden = true;
+    }, duration);
+  }
+
+  function showAuthError(msg) {
+    authError.textContent = msg;
+    authError.hidden = !msg;
+  }
+
+  function emptyResumeState() {
+    return {
+      entryIdCounter: 0,
+      basic: { name: '', email: '', phone: '', location: '' },
+      bulletPool: [],
+      resumeData: {
+        education: [],
+        internship: [],
+        projects: [],
+        skills: [],
+        hobbies: [],
+      },
+    };
+  }
+
+  function snapshotState() {
+    return {
+      entryIdCounter,
+      basic: {
+        name: basicFields.name.value,
+        email: basicFields.email.value,
+        phone: basicFields.phone.value,
+        location: basicFields.location.value,
+      },
+      bulletPool: JSON.parse(JSON.stringify(bulletPool)),
+      resumeData: JSON.parse(JSON.stringify(resumeData)),
+      savedAt: new Date().toISOString(),
+    };
+  }
+
+  function applyState(snapshot) {
+    const data = snapshot || emptyResumeState();
+
+    entryIdCounter = data.entryIdCounter || 0;
+
+    basicFields.name.value = data.basic?.name || '';
+    basicFields.email.value = data.basic?.email || '';
+    basicFields.phone.value = data.basic?.phone || '';
+    basicFields.location.value = data.basic?.location || '';
+
+    bulletPool.length = 0;
+    (data.bulletPool || []).forEach((item) => bulletPool.push(item));
+
+    sectionOrder.forEach((key) => {
+      resumeData[key] = Array.isArray(data.resumeData?.[key])
+        ? JSON.parse(JSON.stringify(data.resumeData[key]))
+        : [];
+    });
+
+    closeEntryForm();
+    renderBulletPool();
+    renderResumeSections();
+  }
+
+  function enterApp(user, isNew) {
+    currentUser = user;
+    authScreen.hidden = true;
+    appEl.hidden = false;
+    userBadge.textContent = user.username;
+
+    if (isNew || !user.resume) {
+      applyState(emptyResumeState());
+      if (isNew) showToast('注册成功，开始编辑简历吧');
+    } else {
+      applyState(user.resume);
+      showToast(`欢迎回来，${user.username}`);
+    }
+  }
+
+  function handleAuthSubmit(e) {
+    e.preventDefault();
+    showAuthError('');
+
+    const username = document.getElementById('auth-username').value;
+    const phone = document.getElementById('auth-phone').value;
+    const result = ResumeDB.loginOrRegister(username, phone);
+
+    if (!result.ok) {
+      showAuthError(result.error);
+      return;
+    }
+
+    enterApp(result.user, result.isNew);
+  }
+
+  function handleSave() {
+    if (!currentUser) return;
+    const snapshot = snapshotState();
+    const result = ResumeDB.saveResume(currentUser.phone, snapshot);
+    if (!result.ok) {
+      showToast(result.error || '保存失败');
+      return;
+    }
+    currentUser = result.user;
+    showToast('已保存到数据库');
+  }
+
+  function handleLogout() {
+    ResumeDB.logout();
+    currentUser = null;
+    applyState(emptyResumeState());
+    appEl.hidden = true;
+    authScreen.hidden = false;
+    showAuthError('');
+    document.getElementById('auth-username').value = '';
+    document.getElementById('auth-phone').value = '';
+    document.getElementById('auth-username').focus();
+  }
+
+  authForm.addEventListener('submit', handleAuthSubmit);
+  document.getElementById('btn-save').addEventListener('click', handleSave);
+  document.getElementById('btn-logout').addEventListener('click', handleLogout);
 
   // --- Add menu ---
 
@@ -715,4 +853,14 @@
 
   renderBulletPool();
   renderResumeSections();
+
+  // 恢复会话，或显示登录页
+  const sessionUser = ResumeDB.getSession();
+  if (sessionUser) {
+    enterApp(sessionUser, false);
+  } else {
+    authScreen.hidden = false;
+    appEl.hidden = true;
+    document.getElementById('auth-username').focus();
+  }
 })();
