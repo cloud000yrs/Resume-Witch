@@ -8,7 +8,7 @@
   let dropInsertBefore = false;
   let justDragged = false;
 
-  const sectionOrder = ['education', 'internship', 'projects', 'skills', 'hobbies'];
+  const sectionOrder = ['education', 'internship', 'projects', 'clubs', 'skills', 'hobbies'];
 
   const sectionConfigs = {
     education: {
@@ -39,6 +39,15 @@
       ],
       textarea: { key: 'details', label: '项目描述', placeholder: '每行一条' },
     },
+    clubs: {
+      label: '社团经历',
+      fields: [
+        { key: 'org', label: '社团名称', placeholder: 'XX社团', required: true },
+        { key: 'role', label: '担任职位', placeholder: '部长 / 干事' },
+        { key: 'period', label: '起止时间', placeholder: '2022.09 - 2023.06' },
+      ],
+      textarea: { key: 'details', label: '工作内容', placeholder: '每行一条' },
+    },
     skills: {
       label: '专业技能',
       fields: [
@@ -58,6 +67,7 @@
     education: [],
     internship: [],
     projects: [],
+    clubs: [],
     skills: [],
     hobbies: [],
   };
@@ -114,6 +124,7 @@
         education: [],
         internship: [],
         projects: [],
+        clubs: [],
         skills: [],
         hobbies: [],
       },
@@ -369,6 +380,8 @@
         return { main: [entry.company, entry.role].filter(Boolean).join(' · '), sub: entry.period || '' };
       case 'projects':
         return { main: [entry.name, entry.role].filter(Boolean).join(' · '), sub: entry.period || '' };
+      case 'clubs':
+        return { main: [entry.org, entry.role].filter(Boolean).join(' · '), sub: entry.period || '' };
       case 'skills':
         return { main: entry.category || '', sub: '' };
       case 'hobbies':
