@@ -83,6 +83,17 @@
 
         <div class="resume-editor" id="resume-editor">
           <div class="basic-info">
+            <div class="photo-editor" id="photo-editor">
+              <div class="photo-thumb" id="photo-thumb">
+                <img id="photo-img" alt="" hidden>
+                <span id="photo-placeholder" class="photo-placeholder">暂无照片</span>
+              </div>
+              <div class="photo-controls">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-upload-photo">上传一寸照</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="btn-remove-photo" hidden>删除照片</button>
+                <input type="file" id="photo-input" accept="image/*" hidden>
+              </div>
+            </div>
             <div class="field-row">
               <label>
                 <span>姓名</span>
@@ -109,6 +120,30 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <div class="modal" id="crop-modal" hidden>
+    <div class="modal-backdrop" data-crop-close></div>
+    <div class="modal-dialog modal-crop">
+      <div class="modal-header">
+        <h2>裁剪一寸照</h2>
+        <button type="button" class="btn-close" data-crop-close aria-label="关闭">&times;</button>
+      </div>
+      <div class="modal-body crop-body">
+        <p class="crop-tip">拖动图片调整位置，拖动滑块缩放，蓝色虚线框按一寸照比例</p>
+        <div class="crop-view" id="crop-view">
+          <img id="crop-img" alt="">
+        </div>
+        <div class="crop-zoom">
+          <label for="crop-zoom-range">缩放</label>
+          <input type="range" id="crop-zoom-range" min="1" max="10" step="0.01" value="1">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-crop-close>取消</button>
+        <button type="button" class="btn btn-primary" id="btn-crop-confirm">确认</button>
+      </div>
+    </div>
   </div>
 
   <div class="toast" id="toast" hidden></div>

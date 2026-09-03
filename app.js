@@ -80,6 +80,7 @@
   };
 
   let currentUser = null;
+  let photoData = ''; // 一寸证件照 dataURL
 
   const authScreen = document.getElementById('auth-screen');
   const appEl = document.getElementById('app');
@@ -118,7 +119,7 @@
   function emptyResumeState() {
     return {
       entryIdCounter: 0,
-      basic: { name: '', email: '', phone: '', location: '' },
+      basic: { name: '', email: '', phone: '', location: '', photo: '' },
       bulletPool: [],
       resumeData: {
         education: [],
@@ -139,6 +140,7 @@
         email: basicFields.email.value,
         phone: basicFields.phone.value,
         location: basicFields.location.value,
+        photo: photoData,
       },
       bulletPool: JSON.parse(JSON.stringify(bulletPool)),
       resumeData: JSON.parse(JSON.stringify(resumeData)),
@@ -155,6 +157,8 @@
     basicFields.email.value = data.basic?.email || '';
     basicFields.phone.value = data.basic?.phone || '';
     basicFields.location.value = data.basic?.location || '';
+    photoData = data.basic?.photo || '';
+    syncPhotoUI();
 
     bulletPool.length = 0;
     (data.bulletPool || []).forEach((item) => bulletPool.push(item));
@@ -779,6 +783,7 @@
 
   function buildPreviewHtml() {
     const name = getFieldValue('name') || '您的姓名';
+    const photoHtml = photoData ? `<div class="preview-photo"><img src="${photoData}" alt=""></div>` : '';
     const email = getFieldValue('email');
     const phone = getFieldValue('phone');
     const location = getFieldValue('location');
@@ -795,6 +800,7 @@
 
     return `
       <div class="preview-header">
+        ${photoHtml}
         <div class="preview-name">${escapeHtml(name)}</div>
         ${contactHtml}
       </div>
@@ -864,6 +870,193 @@
     return escapeHtml(str).replace(/"/g, '&quot;');
   }
 
+
+  // ===== 一寸照上传与裁剪 =====
+  const photoImgEl = document.getElementById('photo-img');
+  const photoPlaceholder = document.getElementById('photo-placeholder');
+  const btnUploadPhoto = document.getElementById('btn-upload-photo');
+  const btnRemovePhoto = document.getElementById('btn-remove-photo');
+  const photoInput = document.getElementById('photo-input');
+
+  const cropModal = document.getElementById('crop-modal');
+  const cropView = document.getElementById('crop-view');
+  const cropImg = document.getElementById('crop-img');
+  const cropZoomRange = document.getElementById('crop-zoom-range');
+  const btnCropConfirm = document.getElementById('btn-crop-confirm');
+
+  const CROP_OUT_W = 300;   // 输出约一寸宽（25mm 高分辨率）
+  const CROP_OUT_H = 420;   // 宽:高 = 1:1.4
+
+  function syncPhotoUI() {
+    const has = !!photoData;
+    if (has) {
+      photoImgEl.src = photoData;
+      photoImgEl.hidden = false;
+      photoPlaceholder.hidden = true;
+      btnRemovePhoto.hidden = false;
+    } else {
+      photoImgEl.removeAttribute('src');
+      photoImgEl.hidden = true;
+      photoPlaceholder.hidden = false;
+      btnRemovePhoto.hidden = true;
+    }
+  }
+
+  btnUploadPhoto.addEventListener('click', () => photoInput.click());
+
+  btnRemovePhoto.addEventListener('click', () => {
+    photoData = '';
+    syncPhotoUI();
+  });
+
+  photoInput.addEventListener('change', () => {
+    const file = photoInput.files && photoInput.files[0];
+    photoInput.value = '';
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    cropImg.onload = null;
+    cropImg.src = url;
+    cropImg.onload = () => initCropAndOpen();
+  });
+
+  function getViewportCss() {
+    const r = cropView.getBoundingClientRect();
+    return { W: r.width, H: r.height };
+  }
+
+  let cropState = null;
+
+  function initCropAndOpen() {
+    const { W, H } = getViewportCss();
+    const natW = cropImg.naturalWidth;
+    const natH = cropImg.naturalHeight;
+    if (!natW || !natH) return;
+
+    const baseScale = Math.max(W / natW, H / natH); // cover
+    cropState = {
+      natW, natH,
+      baseScale,
+      dispScale: W/W >= 0 ? baseScale : baseScale, // dispScale = css px per nat px
+      originX: (W - natW * baseScale) / 2,
+      originY: (H - natH * baseScale) / 2,
+    };
+    const maxMultiplier = Math.min(10, (natW / (W / baseScale)) || 10, (natH / (H / baseScale)) || 10);
+    cropZoomRange.max = String(Math.max(1.5, Math.min(10, Math.round(maxMultiplier * 10) / 10)));
+    cropZoomRange.value = '1';
+    cropModal.hidden = false;
+    renderCrop();
+  }
+
+  function renderCrop() {
+    if (!cropState) return;
+    const st = cropState;
+    const { W, H } = getViewportCss();
+    const dispW = st.natW * st.dispScale;
+    const dispH = st.natH * st.dispScale;
+    cropImg.style.width = dispW + 'px';
+    cropImg.style.height = dispH + 'px';
+    cropImg.style.left = st.originX + 'px';
+    cropImg.style.top = st.originY + 'px';
+  }
+
+  function clampCrop() {
+    const st = cropState;
+    const { W, H } = getViewportCss();
+    const dispW = st.natW * st.dispScale;
+    const dispH = st.natH * st.dispScale;
+    const minX = Math.min(0, W - dispW);
+    const minY = Math.min(0, H - dispH);
+    st.originX = Math.max(minX, Math.min(0, st.originX));
+    st.originY = Math.max(minY, Math.min(0, st.originY));
+  }
+
+  cropZoomRange.addEventListener('input', () => {
+    if (!cropState) return;
+    const { W, H } = getViewportCss();
+    const k = parseFloat(cropZoomRange.value || '1');
+    const newScale = cropState.baseScale * k;
+    const factor = newScale / cropState.dispScale;
+    const cx = W / 2;
+    const cy = H / 2;
+    cropState.originX = cx + (cropState.originX - cx) * factor;
+    cropState.originY = cy + (cropState.originY - cy) * factor;
+    cropState.dispScale = newScale;
+    clampCrop();
+    renderCrop();
+  });
+
+  // 拖动
+  let dragStart = null;
+  cropView.addEventListener('pointerdown', (e) => {
+    if (!cropState) return;
+    dragStart = { x: e.clientX, y: e.clientY, ox: cropState.originX, oy: cropState.originY };
+    cropView.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  cropView.addEventListener('pointermove', (e) => {
+    if (!dragStart || !cropState) return;
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+    cropState.originX = dragStart.ox + dx;
+    cropState.originY = dragStart.oy + dy;
+    clampCrop();
+    renderCrop();
+  });
+  cropView.addEventListener('pointerup', (e) => {
+    dragStart = null;
+    try { cropView.releasePointerCapture(e.pointerId); } catch (_) {}
+  });
+  cropView.addEventListener('pointercancel', () => { dragStart = null; });
+  // 鼠标滚轮缩放
+  cropView.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (!cropState) return;
+    const cur = parseFloat(cropZoomRange.value || '1');
+    const step = e.deltaY < 0 ? cur * 1.08 : cur / 1.08;
+    const clamped = Math.max(1, Math.min(parseFloat(cropZoomRange.max || '10'), step));
+    cropZoomRange.value = String(clamped);
+    cropZoomRange.dispatchEvent(new Event('input'));
+  }, { passive: false });
+
+  // 打开/关闭裁剪
+  cropModal.querySelectorAll('[data-crop-close]').forEach((el) => {
+    el.addEventListener('click', () => {
+      cropModal.hidden = true;
+      cropImg.removeAttribute('src');
+      cropImg.onload = null;
+      if (cropImg.src) { try { URL.revokeObjectURL(cropImg.src.split('?')[0]); } catch (_) {} }
+      try { URL.revokeObjectURL(cropImg.currentSrc || ''); } catch (_) {}
+      cropState = null;
+    });
+  });
+
+  function doCrop() {
+    if (!cropState) return;
+    const { natW, natH, dispScale, originX, originY } = cropState;
+    const { W, H } = getViewportCss();
+    const srcX = -originX / dispScale;
+    const srcY = -originY / dispScale;
+    const srcW = W / dispScale;
+    const srcH = H / dispScale;
+    const cx = document.createElement('canvas');
+    cx.width = CROP_OUT_W;
+    cx.height = CROP_OUT_H;
+    const ctx = cx.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(cropImg, srcX, srcY, srcW, srcH, 0, 0, CROP_OUT_W, CROP_OUT_H);
+    photoData = cx.toDataURL('image/jpeg', 0.92);
+    syncPhotoUI();
+    cropModal.hidden = true;
+    try { URL.revokeObjectURL(cropImg.currentSrc || ''); } catch (_) {}
+    cropImg.removeAttribute('src');
+    cropState = null;
+  }
+
+  btnCropConfirm.addEventListener('click', doCrop);
+  // Ctrl/Cmd+Enter 确认
+  cropModal.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
+
   renderBulletPool();
   renderResumeSections();
 
@@ -876,4 +1069,5 @@
     appEl.hidden = true;
     document.getElementById('auth-username').focus();
   }
+
 })();
