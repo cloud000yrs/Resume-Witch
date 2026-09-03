@@ -914,11 +914,27 @@
     photoInput.value = '';
     if (!file) return;
     const url = URL.createObjectURL(file);
-    cropImg.onload = null;
+    // 先显示裁剪弹窗，确保能测到真实布局尺寸
+    cropModal.hidden = false;
     cropImg.src = url;
-    cropImg.onload = () => initCropAndOpen();
+    cropImg.decode = cropImg.decode || function(){ return Promise.resolve(); };
+    cropImg.decode().then(() => {
+      // 等一帧让弹窗布局完成
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (getCropViewSize().w > 0 && getCropViewSize().h > 0) initCropAndOpen();
+        else setTimeout(initCropAndOpen, 40);
+      }));
+    }).catch(() => {
+      setTimeout(initCropAndOpen, 40);
+    });
   });
 
+  function getCropViewSize() {
+    const r = cropView.getBoundingClientRect();
+    return { w: r.width, h: r.height };
+  }
+
+  // 兼容别称：返回 {W,H}（被 renderCrop/clampCrop/zoom/doCrop 使用；此时弹窗已显示，尺寸有效）
   function getViewportCss() {
     const r = cropView.getBoundingClientRect();
     return { W: r.width, H: r.height };
@@ -927,26 +943,28 @@
   let cropState = null;
 
   function initCropAndOpen() {
-    const { W, H } = getViewportCss();
+    let W = getCropViewSize().w;
+    let H = getCropViewSize().h;
+    cropModal.hidden = false;
+    if (!W) W = 260;     // CSS fallback
+    if (!H) H = 364;
     const natW = cropImg.naturalWidth;
     const natH = cropImg.naturalHeight;
     if (!natW || !natH) return;
 
-    const baseScale = Math.max(W / natW, H / natH); // cover
+    const baseScale = Math.max(W / natW, H / natH); // cover 铺满一寸框
     cropState = {
       natW, natH,
       baseScale,
-      dispScale: W/W >= 0 ? baseScale : baseScale, // dispScale = css px per nat px
+      dispScale: baseScale,
       originX: (W - natW * baseScale) / 2,
       originY: (H - natH * baseScale) / 2,
     };
-    const maxMultiplier = Math.min(10, (natW / (W / baseScale)) || 10, (natH / (H / baseScale)) || 10);
-    cropZoomRange.max = String(Math.max(1.5, Math.min(10, Math.round(maxMultiplier * 10) / 10)));
+    const maxM = Math.min(10, (natW * baseScale) / W || 10, (natH * baseScale) / H || 10);
+    cropZoomRange.max = String(Math.max(1.5, Math.min(10, Math.round(maxM * 10) / 10)));
     cropZoomRange.value = '1';
-    cropModal.hidden = false;
     renderCrop();
   }
-
   function renderCrop() {
     if (!cropState) return;
     const st = cropState;
