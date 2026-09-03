@@ -1004,18 +1004,24 @@ body {
 
 /* ===== 预览/PDF 右上角一寸照 ===== */
 .preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10mm;
+  padding-bottom: 14px;
+  border-bottom: 1.5px solid #1a1d23;
+  margin-bottom: 16px;
   position: relative;
-  padding-right: 26mm; /* 为右上角照片留空间 */
 }
-.preview-header:has(.preview-photo) {
-  padding-right: 26mm;
+.preview-main {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
 }
 .preview-photo {
-  position: absolute;
-  top: 0;
-  right: 2mm;
-  width: 25mm;
-  height: 35mm;
+  flex-shrink: 0;
+  width: 22mm;   /* 略小于一寸宽 */
+  height: 30.8mm; /* 保持一寸比例(宽:高=1:1.4) */
   overflow: hidden;
   border: 0.4mm solid #c9ccd2;
   border-radius: 1mm;

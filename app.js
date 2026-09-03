@@ -800,9 +800,11 @@
 
     return `
       <div class="preview-header">
+        <div class="preview-main">
+          <div class="preview-name">${escapeHtml(name)}</div>
+          ${contactHtml}
+        </div>
         ${photoHtml}
-        <div class="preview-name">${escapeHtml(name)}</div>
-        ${contactHtml}
       </div>
       ${sectionsHtml}`;
   }
