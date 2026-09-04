@@ -838,6 +838,7 @@ body {
   margin: 0 auto;
   padding: 20mm 18mm;
   box-shadow: var(--shadow-md);
+  position: relative;
   font-family: var(--font-serif);
   font-size: 10.5pt;
   line-height: 1.55;
@@ -845,7 +846,9 @@ body {
 }
 
 .preview-header {
+  position: static;
   text-align: center;
+  padding-right: 0;
   padding-bottom: 14px;
   border-bottom: 1.5px solid #1a1d23;
   margin-bottom: 16px;
@@ -1017,10 +1020,10 @@ body {
 }
 .preview-photo {
   position: absolute;
-  top: 0;
-  right: 4mm;
-  width: 15mm;
-  height: 21mm;
+  top: 6mm;      /* 放在页眉空白带(上边~与名字上方之间) */
+  right: 6mm;
+  width: 10mm;
+  height: 14mm;
   overflow: hidden;
   border: 0.4mm solid #c9ccd2;
   border-radius: 1mm;
