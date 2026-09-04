@@ -1017,15 +1017,15 @@ body {
 }
 .preview-photo {
   position: absolute;
-  top: 1mm;
-  right: 2mm;
-  width: 17mm;   /* 小尺寸 */
-  height: 24mm;  /* 17*1.4=23.8 近似, 保持一寸(1:1.4)比例 */
+  top: 0;
+  right: 4mm;
+  width: 15mm;
+  height: 21mm;
   overflow: hidden;
   border: 0.4mm solid #c9ccd2;
   border-radius: 1mm;
   background: #fff;
-  box-shadow: 0 0 2mm rgba(0,0,0,0.06);
+  box-shadow: 0 0 1.5mm rgba(0,0,0,0.06);
 }
 .preview-photo img {
   display: block;
