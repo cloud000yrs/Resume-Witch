@@ -1020,10 +1020,10 @@ body {
 }
 .preview-photo {
   position: absolute;
-  top: 6mm;      /* 放在页眉空白带(上边~与名字上方之间) */
+  top: 1mm;      /* 上移5mm */
   right: 6mm;
-  width: 10mm;
-  height: 14mm;
+  width: 15mm;
+  height: 21mm;  /* 放大1.5倍 */
   overflow: hidden;
   border: 0.4mm solid #c9ccd2;
   border-radius: 1mm;
