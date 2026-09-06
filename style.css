@@ -975,9 +975,10 @@ body {
 }
 
 /* 要点颜色与筛选 */
-.pool-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; }
-.pool-filter { padding: 4px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-secondary); cursor: pointer; font: inherit; font-size: 11px; }
-.pool-filter:hover, .pool-filter.is-active { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+.pool-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 12px; }
+.pool-filter { appearance: none; padding: 5px 9px; border: 1px solid #dfe5ef; border-radius: 999px; background: #fff; color: #657084; cursor: pointer; font: 600 12px/1.2 var(--font); box-shadow: 0 1px 1px rgba(22, 42, 74, .03); transition: background .15s, border-color .15s, color .15s, transform .15s, box-shadow .15s; }
+.pool-filter:hover { border-color: #9ebae7; color: var(--accent); background: #f6f9ff; transform: translateY(-1px); }
+.pool-filter.is-active { border-color: var(--accent); background: var(--accent); color: #fff; box-shadow: 0 3px 8px rgba(45, 90, 160, .22); }
 .bullet-item.color-red { border-left: 4px solid #dc3d3d; }
 .bullet-item.color-orange { border-left: 4px solid #e98325; }
 .bullet-item.color-blue { border-left: 4px solid #3977d8; }
