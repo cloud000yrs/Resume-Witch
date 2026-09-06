@@ -974,6 +974,26 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+/* 要点颜色与筛选 */
+.pool-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; }
+.pool-filter { padding: 4px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-secondary); cursor: pointer; font: inherit; font-size: 11px; }
+.pool-filter:hover, .pool-filter.is-active { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+.bullet-item.color-red { border-left: 4px solid #dc3d3d; }
+.bullet-item.color-orange { border-left: 4px solid #e98325; }
+.bullet-item.color-blue { border-left: 4px solid #3977d8; }
+.bullet-item.color-green { border-left: 4px solid #3b9a63; }
+.bullet-item.color-yellow { border-left: 4px solid #d3a61d; }
+.bullet-item.color-purple { border-left: 4px solid #8a58bf; }
+.bullet-item.color-gray { border-left: 4px solid #7b8491; }
+.color-picker { border: 0; margin: 0; padding: 0; }
+.color-picker legend { font-size: 12px; color: var(--text-secondary); margin-bottom: 7px; }
+.color-options { display: flex; gap: 9px; }
+.color-option { display: block; cursor: pointer; }
+.color-option input { position: absolute; opacity: 0; pointer-events: none; }
+.color-option span { display: block; width: 22px; height: 22px; border: 2px solid transparent; border-radius: 50%; box-shadow: 0 0 0 1px var(--border); transition: transform .15s, box-shadow .15s; }
+.color-option input:checked + span { transform: scale(1.12); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+.color-option.color-red span { background: #dc3d3d; }.color-option.color-orange span { background: #e98325; }.color-option.color-blue span { background: #3977d8; }.color-option.color-green span { background: #3b9a63; }.color-option.color-yellow span { background: #d3a61d; }.color-option.color-purple span { background: #8a58bf; }.color-option.color-gray span { background: #7b8491; }
+
 /* Resume library */
 .library-dialog { max-width: 680px; }
 .modal-subtitle { margin-top: 3px; color: var(--text-muted); font-size: 12px; }

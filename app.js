@@ -7,6 +7,7 @@
   let dropTargetEntryId = null;
   let dropInsertBefore = false;
   let justDragged = false;
+  let activePoolFilter = 'all';
 
   const sectionOrder = ['education', 'internship', 'projects', 'clubs', 'skills', 'hobbies'];
 
@@ -96,6 +97,7 @@
   const entryForm = document.getElementById('entry-form');
   const bulletPoolEl = document.getElementById('bullet-pool');
   const poolEmpty = document.getElementById('pool-empty');
+  const poolFilters = document.getElementById('pool-filters');
   const resumeSections = document.getElementById('resume-sections');
   const previewModal = document.getElementById('preview-modal');
   const previewContent = document.getElementById('preview-content');
@@ -370,6 +372,10 @@
         </label>`;
     }
 
+    const selectedColor = entry?.color || 'blue';
+    const colors = ['red', 'orange', 'blue', 'green', 'yellow', 'purple', 'gray'];
+    html += `<fieldset class="color-picker"><legend>要点框颜色</legend><div class="color-options">${colors.map((color) => `<label class="color-option color-${color}"><input type="radio" name="color" value="${color}"${selectedColor === color ? ' checked' : ''}><span aria-label="${color}"></span></label>`).join('')}</div></fieldset>`;
+
     html += `
       <div class="form-actions">
         <button type="button" class="btn btn-secondary" id="btn-cancel-form">取消</button>
@@ -395,7 +401,7 @@
   function buildEntryFromForm(type) {
     const config = sectionConfigs[type];
     const formData = new FormData(entryForm);
-    const entry = { type };
+    const entry = { type, color: formData.get('color') || 'blue' };
 
     config.fields.forEach((field) => {
       entry[field.key] = (formData.get(field.key) || '').trim();
@@ -570,13 +576,23 @@
 
   // --- Bullet pool render ---
 
+  poolFilters.addEventListener('click', (e) => {
+    const button = e.target.closest('[data-filter]');
+    if (!button) return;
+    activePoolFilter = button.dataset.filter;
+    poolFilters.querySelectorAll('.pool-filter').forEach((item) => item.classList.toggle('is-active', item === button));
+    renderBulletPool();
+  });
+
   function renderBulletPool() {
     bulletPoolEl.querySelectorAll('.bullet-item').forEach((el) => el.remove());
-    poolEmpty.hidden = bulletPool.length > 0;
+    const visibleEntries = activePoolFilter === 'all' ? bulletPool : bulletPool.filter((entry) => entry.type === activePoolFilter);
+    poolEmpty.hidden = visibleEntries.length > 0;
+    poolEmpty.textContent = bulletPool.length ? '该类别暂无要点' : '暂无要点，点击「增加要点」添加';
 
-    bulletPool.forEach((entry) => {
+    visibleEntries.forEach((entry) => {
       const el = document.createElement('div');
-      el.className = 'bullet-item';
+      el.className = `bullet-item color-${entry.color || 'blue'}`;
       el.draggable = true;
       el.dataset.entryId = entry.id;
 
