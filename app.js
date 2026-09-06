@@ -8,6 +8,7 @@
   let dropInsertBefore = false;
   let justDragged = false;
   let activePoolFilter = 'all';
+  let resumeLanguage = 'zh';
 
   const sectionOrder = ['education', 'internship', 'projects', 'clubs', 'skills', 'hobbies'];
 
@@ -101,6 +102,7 @@
   const resumeSections = document.getElementById('resume-sections');
   const previewModal = document.getElementById('preview-modal');
   const previewContent = document.getElementById('preview-content');
+  const languageBtn = document.getElementById('btn-language');
   const libraryModal = document.getElementById('library-modal');
   const libraryList = document.getElementById('library-list');
   const librarySaveForm = document.getElementById('library-save-form');
@@ -125,6 +127,7 @@
   function emptyResumeState() {
     return {
       entryIdCounter: 0,
+      language: 'zh',
       basic: { name: '', email: '', phone: '', location: '', photo: '' },
       bulletPool: [],
       resumeData: {
@@ -141,6 +144,7 @@
   function snapshotState() {
     return {
       entryIdCounter,
+      language: resumeLanguage,
       basic: {
         name: basicFields.name.value,
         email: basicFields.email.value,
@@ -158,6 +162,8 @@
     const data = snapshot || emptyResumeState();
 
     entryIdCounter = data.entryIdCounter || 0;
+    resumeLanguage = data.language === 'en' ? 'en' : 'zh';
+    syncLanguageButton();
 
     basicFields.name.value = data.basic?.name || '';
     basicFields.email.value = data.basic?.email || '';
@@ -238,6 +244,29 @@
   authForm.addEventListener('submit', handleAuthSubmit);
   document.getElementById('btn-save').addEventListener('click', handleSave);
   document.getElementById('btn-logout').addEventListener('click', handleLogout);
+
+  const englishSectionLabels = {
+    education: 'Education', internship: 'Internship Experience', projects: 'Project Experience',
+    clubs: 'Extracurricular Activities', skills: 'Skills', hobbies: 'Interests',
+  };
+
+  function sectionLabel(type) {
+    return resumeLanguage === 'en' ? englishSectionLabels[type] : sectionConfigs[type].label;
+  }
+
+  function syncLanguageButton() {
+    const isEnglish = resumeLanguage === 'en';
+    languageBtn.textContent = isEnglish ? 'English Resume' : '中文简历';
+    languageBtn.setAttribute('aria-pressed', String(isEnglish));
+  }
+
+  languageBtn.addEventListener('click', () => {
+    resumeLanguage = resumeLanguage === 'zh' ? 'en' : 'zh';
+    syncLanguageButton();
+    renderBulletPool();
+    renderResumeSections();
+    showToast(resumeLanguage === 'en' ? '已切换为英文板块名' : '已切换为中文板块名');
+  });
 
   // --- Resume library ---
 
@@ -487,7 +516,7 @@
   function getEntrySummary(entry) {
     const { main, sub } = formatEntryHeader(entry.type, entry);
     if (main && sub) return `${main}（${sub}）`;
-    return main || sub || sectionConfigs[entry.type].label;
+    return main || sub || sectionLabel(entry.type);
   }
 
   function findEntry(id) {
@@ -599,7 +628,7 @@
       el.innerHTML = `
         <span class="drag-handle" aria-hidden="true">⠿</span>
         <div class="bullet-item-body">
-          <span class="bullet-type-tag">${sectionConfigs[entry.type].label}</span>
+          <span class="bullet-type-tag">${sectionLabel(entry.type)}</span>
           <span class="bullet-summary">${escapeHtml(getEntrySummary(entry))}</span>
         </div>
         <button type="button" class="btn-remove" aria-label="删除">&times;</button>`;
@@ -645,7 +674,7 @@
       });
 
       sectionEl.innerHTML = `
-        <h3 class="section-title">${config.label}</h3>
+        <h3 class="section-title">${sectionLabel(section)}</h3>
         <div class="section-body drop-zone" data-section="${section}">${bodyHtml}</div>`;
 
       resumeSections.appendChild(sectionEl);
@@ -839,7 +868,7 @@
   function buildSectionPreviewHtml(section, entries) {
     if (entries.length === 0) return '';
 
-    const label = sectionConfigs[section].label;
+    const label = sectionLabel(section);
     let itemsHtml = '';
 
     entries.forEach((entry) => {
@@ -848,12 +877,12 @@
       const bullets = entry.bullets || [];
 
       if (type === 'hobbies') {
-        if (bullets.length) itemsHtml += `<li>${bullets.map(escapeHtml).join('、')}</li>`;
+        if (bullets.length) itemsHtml += `<li>${bullets.map(escapeHtml).join(resumeLanguage === 'en' ? ', ' : '、')}</li>`;
         return;
       }
 
       if (type === 'skills' && !main && bullets.length) {
-        itemsHtml += `<li>${bullets.map(escapeHtml).join('、')}</li>`;
+        itemsHtml += `<li>${bullets.map(escapeHtml).join(resumeLanguage === 'en' ? ', ' : '、')}</li>`;
         return;
       }
 
@@ -881,7 +910,7 @@
   }
 
   function buildPreviewHtml() {
-    const name = getFieldValue('name') || '您的姓名';
+    const name = getFieldValue('name') || (resumeLanguage === 'en' ? 'Your Name' : '您的姓名');
     const photoHtml = photoData ? `<div class="preview-photo"><img src="${photoData}" alt=""></div>` : '';
     const email = getFieldValue('email');
     const phone = getFieldValue('phone');
