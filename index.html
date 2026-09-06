@@ -38,6 +38,7 @@
         <span class="user-badge" id="user-badge"></span>
       </div>
       <div class="toolbar-actions">
+        <button type="button" id="btn-library" class="btn btn-secondary">仓库</button>
         <button type="button" id="btn-save" class="btn btn-primary">保存</button>
         <button type="button" id="btn-preview" class="btn btn-secondary">预览</button>
         <button type="button" id="btn-download" class="btn btn-secondary">下载 PDF</button>
@@ -162,6 +163,18 @@
         <button type="button" class="btn btn-secondary" data-close>关闭</button>
         <button type="button" id="btn-download-modal" class="btn btn-primary">下载 PDF</button>
       </div>
+    </div>
+  </div>
+
+  <div class="modal" id="library-modal" hidden>
+    <div class="modal-backdrop" data-library-close></div>
+    <div class="modal-dialog library-dialog">
+      <div class="modal-header"><div><h2>简历仓库</h2><p class="modal-subtitle">保存组合好的简历，随时加载或直接导出 PDF</p></div><button type="button" class="btn-close" data-library-close aria-label="关闭">&times;</button></div>
+      <div class="modal-body">
+        <form id="library-save-form" class="library-save-form"><input id="library-name" type="text" maxlength="40" placeholder="为当前简历命名，如：产品经理-秋招版" required><button type="submit" class="btn btn-primary">存入仓库</button></form>
+        <div id="library-list" class="library-list"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-library-close>关闭</button></div>
     </div>
   </div>
 

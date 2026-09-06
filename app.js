@@ -99,6 +99,10 @@
   const resumeSections = document.getElementById('resume-sections');
   const previewModal = document.getElementById('preview-modal');
   const previewContent = document.getElementById('preview-content');
+  const libraryModal = document.getElementById('library-modal');
+  const libraryList = document.getElementById('library-list');
+  const librarySaveForm = document.getElementById('library-save-form');
+  const libraryName = document.getElementById('library-name');
 
   // --- Auth ---
 
@@ -232,6 +236,85 @@
   authForm.addEventListener('submit', handleAuthSubmit);
   document.getElementById('btn-save').addEventListener('click', handleSave);
   document.getElementById('btn-logout').addEventListener('click', handleLogout);
+
+  // --- Resume library ---
+
+  function formatLibraryDate(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('zh-CN', {
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+  }
+
+  function renderLibrary() {
+    if (!currentUser) return;
+    const works = ResumeDB.listResumes(currentUser.phone);
+    if (!works.length) {
+      libraryList.innerHTML = '<p class="library-empty">仓库还是空的。为当前组合命名后即可保存到这里。</p>';
+      return;
+    }
+    libraryList.innerHTML = works.map((work) => `
+      <article class="library-item" data-work-id="${escapeAttr(work.id)}">
+        <div class="library-item-info"><div class="library-item-name">${escapeHtml(work.name)}</div><div class="library-item-meta">更新于 ${escapeHtml(formatLibraryDate(work.updatedAt))}</div></div>
+        <div class="library-item-actions">
+          <button type="button" class="btn btn-secondary btn-sm" data-library-action="load">加载</button>
+          <button type="button" class="btn btn-primary btn-sm" data-library-action="export">导出 PDF</button>
+          <button type="button" class="btn btn-ghost btn-sm btn-danger" data-library-action="delete">删除</button>
+        </div>
+      </article>`).join('');
+  }
+
+  function openLibrary() {
+    if (!currentUser) return;
+    renderLibrary();
+    libraryModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    libraryName.focus();
+  }
+
+  function closeLibrary() {
+    libraryModal.hidden = true;
+    libraryName.value = '';
+    document.body.style.overflow = '';
+  }
+
+  document.getElementById('btn-library').addEventListener('click', openLibrary);
+  libraryModal.querySelectorAll('[data-library-close]').forEach((el) => el.addEventListener('click', closeLibrary));
+
+  librarySaveForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    const result = ResumeDB.addResumeWork(currentUser.phone, libraryName.value, snapshotState());
+    if (!result.ok) return showToast(result.error || '保存失败');
+    currentUser = ResumeDB.getUser(currentUser.phone);
+    libraryName.value = '';
+    renderLibrary();
+    showToast('已存入简历仓库');
+  });
+
+  libraryList.addEventListener('click', (e) => {
+    const action = e.target.closest('[data-library-action]')?.dataset.libraryAction;
+    const item = e.target.closest('[data-work-id]');
+    if (!action || !item || !currentUser) return;
+    const work = ResumeDB.listResumes(currentUser.phone).find((entry) => entry.id === item.dataset.workId);
+    if (!work) return showToast('该简历已不存在');
+    if (action === 'delete') {
+      if (!window.confirm(`确定删除「${work.name}」吗？`)) return;
+      ResumeDB.deleteResumeWork(currentUser.phone, work.id);
+      currentUser = ResumeDB.getUser(currentUser.phone);
+      renderLibrary();
+      showToast('已删除');
+      return;
+    }
+    applyState(work.resume);
+    if (action === 'load') {
+      closeLibrary();
+      showToast(`已加载「${work.name}」`);
+    } else {
+      closeLibrary();
+      downloadPdf(work.name);
+    }
+  });
 
   // --- Add menu ---
 
@@ -829,19 +912,20 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if (!previewModal.hidden) closePreview();
+      if (!libraryModal.hidden) closeLibrary();
       addMenu.hidden = true;
       addMenuBtn.setAttribute('aria-expanded', 'false');
     }
   });
 
-  function downloadPdf() {
+  function downloadPdf(filenameBase) {
     const wasHidden = previewModal.hidden;
     if (wasHidden) {
       previewContent.innerHTML = buildPreviewHtml();
       previewModal.hidden = false;
     }
 
-    const name = getFieldValue('name') || '简历';
+    const name = String(filenameBase || getFieldValue('name') || '简历').replace(/[\\/:*?"<>|]/g, '_');
     const opt = {
       margin: 0,
       filename: `${name}_简历.pdf`,
