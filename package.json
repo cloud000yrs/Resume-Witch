@@ -1,0 +1,48 @@
+{
+  "name": "resume-witch",
+  "productName": "简历生成器",
+  "version": "1.0.0",
+  "description": "拖拽组合式简历生成器，支持中英文板块名、要点库、PDF 导出",
+  "main": "electron/main.js",
+  "author": "cloud000yrs",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.cloud000yrs.resumewitch",
+    "productName": "简历生成器",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "index.html",
+      "app.js",
+      "db.js",
+      "style.css",
+      "vendor/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "简历生成器"
+    }
+  }
+}

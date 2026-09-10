@@ -288,8 +288,7 @@
       <article class="library-item" data-work-id="${escapeAttr(work.id)}">
         <div class="library-item-info"><div class="library-item-name">${escapeHtml(work.name)}</div><div class="library-item-meta">更新于 ${escapeHtml(formatLibraryDate(work.updatedAt))}</div></div>
         <div class="library-item-actions">
-          <button type="button" class="btn btn-secondary btn-sm" data-library-action="load">加载</button>
-          <button type="button" class="btn btn-primary btn-sm" data-library-action="export">导出 PDF</button>
+          <button type="button" class="btn btn-primary btn-sm" data-library-action="export">下载 PDF</button>
           <button type="button" class="btn btn-ghost btn-sm btn-danger" data-library-action="delete">删除</button>
         </div>
       </article>`).join('');
@@ -337,15 +336,28 @@
       showToast('已删除');
       return;
     }
-    applyState(work.resume);
-    if (action === 'load') {
-      closeLibrary();
-      showToast(`已加载「${work.name}」`);
-    } else {
-      closeLibrary();
-      downloadPdf(work.name);
+    if (action === 'export') {
+      exportLibraryResumeAsPdf(work);
     }
   });
+
+  // 仓库里的简历独立导出：临时套用其状态生成 PDF，不影响当前工作区
+  function exportLibraryResumeAsPdf(work) {
+    const previousSnapshot = snapshotState();
+    applyState(work.resume);
+    downloadPdf(work.name);
+    // 下载弹窗关闭后再恢复，避免用户看到当前工作区被临时覆盖
+    const restore = () => applyState(previousSnapshot);
+    const observer = new MutationObserver(() => {
+      if (previewModal.hidden) {
+        observer.disconnect();
+        restore();
+      }
+    });
+    observer.observe(previewModal, { attributes: true, attributeFilter: ['hidden'] });
+    // 兜底：若 html2pdf 异常没关闭弹窗，3 秒后强制恢复
+    setTimeout(() => { observer.disconnect(); restore(); }, 3000);
+  }
 
   // --- Add menu ---
 
