@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>简历生成器</title>
-  <link rel="stylesheet" href="style.css?v=20260906-2">
+  <link rel="stylesheet" href="style.css?v=20260910-9">
 </head>
 <body>
   <!-- 登录 / 注册 -->
@@ -40,7 +40,7 @@
       <div class="toolbar-actions">
         <button type="button" id="btn-language" class="btn btn-secondary" aria-pressed="false">中文简历</button>
         <button type="button" id="btn-library" class="btn btn-secondary">仓库</button>
-        <button type="button" id="btn-save" class="btn btn-primary">保存</button>
+        <button type="button" id="btn-applications" class="btn btn-secondary">投递记录</button>
         <button type="button" id="btn-preview" class="btn btn-secondary">预览</button>
         <button type="button" id="btn-download" class="btn btn-secondary">下载 PDF</button>
         <button type="button" id="btn-logout" class="btn btn-ghost">退出</button>
@@ -63,14 +63,13 @@
           </div>
         </div>
 
-        <div id="entry-form-area" class="entry-form-area" hidden>
-          <h3 class="form-type-title" id="form-type-title"></h3>
-          <form id="entry-form" class="entry-form"></form>
-        </div>
-
         <div class="bullet-pool-section">
           <h3 class="pool-title">要点库</h3>
           <p class="pool-desc">点击要点可编辑，拖拽至右侧对应板块</p>
+          <div class="pool-filters pool-lang-filters" id="pool-lang-filters" aria-label="按语言筛选要点">
+            <button type="button" class="pool-filter is-active" data-lang="zh">中文</button>
+            <button type="button" class="pool-filter" data-lang="en">English</button>
+          </div>
           <div class="pool-filters" id="pool-filters" aria-label="按类别筛选要点">
             <button type="button" class="pool-filter is-active" data-filter="all">全部</button>
             <button type="button" class="pool-filter" data-filter="education">教育</button>
@@ -89,7 +88,7 @@
       <section class="panel panel-right">
         <div class="panel-header">
           <h2>简历内容</h2>
-          <p class="panel-desc">填写基本信息，从左侧拖入各板块，可拖动调整顺序</p>
+          <p class="panel-desc">填写基本信息，从左侧拖入各板块，点击条目可编辑</p>
         </div>
 
         <div class="resume-editor" id="resume-editor">
@@ -133,6 +132,37 @@
     </main>
   </div>
 
+  <!-- 投递记录（独立界面） -->
+  <div class="applications-screen" id="applications-screen" hidden>
+    <header class="toolbar">
+      <div class="toolbar-brand">
+        <span class="brand-icon">◆</span>
+        <h1>投递记录</h1>
+      </div>
+      <div class="toolbar-actions">
+        <button type="button" id="btn-applications-back" class="btn btn-primary">返回编辑</button>
+      </div>
+    </header>
+    <main class="applications-main">
+      <form id="application-form" class="application-form">
+        <label class="form-field">
+          <span>公司</span>
+          <input type="text" id="app-company" placeholder="XX科技有限公司" maxlength="60" required>
+        </label>
+        <label class="form-field">
+          <span>岗位</span>
+          <input type="text" id="app-position" placeholder="前端开发工程师" maxlength="60" required>
+        </label>
+        <label class="form-field">
+          <span>链接</span>
+          <input type="text" id="app-link" placeholder="https://..." maxlength="300">
+        </label>
+        <button type="submit" class="btn btn-primary">添加</button>
+      </form>
+      <div id="application-list" class="application-list"></div>
+    </main>
+  </div>
+
   <div class="modal" id="crop-modal" hidden>
     <div class="modal-backdrop" data-crop-close></div>
     <div class="modal-dialog modal-crop">
@@ -153,6 +183,19 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-crop-close>取消</button>
         <button type="button" class="btn btn-primary" id="btn-crop-confirm">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="entry-modal" hidden>
+    <div class="modal-backdrop" data-entry-close></div>
+    <div class="modal-dialog modal-entry">
+      <div class="modal-header">
+        <h2 id="entry-modal-title">编辑要点</h2>
+        <button type="button" class="btn-close" data-entry-close aria-label="关闭">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="entry-form" class="entry-form"></form>
       </div>
     </div>
   </div>
@@ -189,7 +232,7 @@
   </div>
 
   <script src="vendor/html2pdf.bundle.min.js"></script>
-  <script src="db.js?v=20260906-2"></script>
-  <script src="app.js?v=20260910-1"></script>
+  <script src="db.js?v=20260910-7"></script>
+  <script src="app.js?v=20260910-9"></script>
 </body>
 </html>

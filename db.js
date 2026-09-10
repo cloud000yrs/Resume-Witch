@@ -14,6 +14,7 @@ const ResumeDB = (function () {
   function isValidPhone(phone) { return /^1\d{10}$/.test(normalizePhone(phone)); }
   function getUser(phone) { return readDB().users[normalizePhone(phone)] || null; }
   function worksOf(user) { if (!Array.isArray(user.saved_resumes)) user.saved_resumes = []; return user.saved_resumes; }
+  function applicationsOf(user) { if (!Array.isArray(user.applications)) user.applications = []; return user.applications; }
   function newWorkId() { return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`; }
 
   function loginOrRegister(username, phone) {
@@ -92,9 +93,71 @@ const ResumeDB = (function () {
     writeDB(db);
     return { ok: true, work };
   }
+  function listApplications(phone) {
+    const user = getUser(phone);
+    return applicationsOf(user).slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+  function addApplication(phone, data) {
+    const db = readDB();
+    const user = db.users[normalizePhone(phone)];
+    if (!user) return { ok: false, error: '用户不存在' };
+    const company = String(data?.company || '').trim();
+    const position = String(data?.position || '').trim();
+    if (!company) return { ok: false, error: '请输入公司名称' };
+    if (!position) return { ok: false, error: '请输入岗位名称' };
+    const now = new Date().toISOString();
+    const app = {
+      id: newWorkId(),
+      company,
+      position,
+      link: String(data?.link || '').trim(),
+      result: '', // '' | 'success' | 'failed'
+      interview: '', // '' | 'yes' | 'no'
+      note: '',
+      createdAt: now,
+      updatedAt: now,
+    };
+    applicationsOf(user).push(app);
+    user.updatedAt = now;
+    writeDB(db);
+    return { ok: true, application: app };
+  }
+  function updateApplication(phone, appId, patch) {
+    const db = readDB();
+    const user = db.users[normalizePhone(phone)];
+    if (!user) return { ok: false, error: '用户不存在' };
+    const app = applicationsOf(user).find((entry) => entry.id === appId);
+    if (!app) return { ok: false, error: '记录不存在' };
+    if (patch?.result !== undefined) {
+      if (!['', 'success', 'failed'].includes(patch.result)) return { ok: false, error: '结果取值非法' };
+      app.result = patch.result;
+    }
+    if (patch?.interview !== undefined) {
+      if (!['', 'yes', 'no'].includes(patch.interview)) return { ok: false, error: '面试取值非法' };
+      app.interview = patch.interview;
+    }
+    if (patch?.note !== undefined) app.note = String(patch.note || '').trim();
+    app.updatedAt = new Date().toISOString();
+    user.updatedAt = app.updatedAt;
+    writeDB(db);
+    return { ok: true, application: app };
+  }
+  function deleteApplication(phone, appId) {
+    const db = readDB();
+    const user = db.users[normalizePhone(phone)];
+    if (!user) return { ok: false, error: '用户不存在' };
+    const list = applicationsOf(user);
+    const index = list.findIndex((entry) => entry.id === appId);
+    if (index < 0) return { ok: false, error: '记录不存在' };
+    list.splice(index, 1);
+    user.updatedAt = new Date().toISOString();
+    writeDB(db);
+    return { ok: true };
+  }
+
   function setSession(phone) { sessionStorage.setItem(SESSION_KEY, normalizePhone(phone)); }
   function getSession() { const phone = sessionStorage.getItem(SESSION_KEY); return phone ? getUser(phone) : null; }
   function logout() { sessionStorage.removeItem(SESSION_KEY); }
 
-  return { loginOrRegister, saveResume, loadResume, listUsers, listResumes, addResumeWork, updateResumeWork, deleteResumeWork, getUser, getSession, logout, isValidPhone, normalizePhone };
+  return { loginOrRegister, saveResume, loadResume, listUsers, listResumes, addResumeWork, updateResumeWork, deleteResumeWork, listApplications, addApplication, updateApplication, deleteApplication, getUser, getSession, logout, isValidPhone, normalizePhone };
 })();

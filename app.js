@@ -8,9 +8,12 @@
   let dropInsertBefore = false;
   let justDragged = false;
   let activePoolFilter = 'all';
+  let activePoolLang = 'zh';
   let resumeLanguage = 'zh';
+  let formPeriod = { start: null, end: null }; // 表单中起止时间（年月）
 
-  const sectionOrder = ['education', 'internship', 'projects', 'clubs', 'skills', 'hobbies'];
+  const DEFAULT_SECTION_ORDER = ['education', 'internship', 'projects', 'clubs', 'skills', 'hobbies'];
+  let sectionOrder = [...DEFAULT_SECTION_ORDER];
 
   const sectionConfigs = {
     education: {
@@ -93,8 +96,8 @@
 
   const addMenuBtn = document.getElementById('btn-add-menu');
   const addMenu = document.getElementById('add-menu');
-  const entryFormArea = document.getElementById('entry-form-area');
-  const formTypeTitle = document.getElementById('form-type-title');
+  const entryModal = document.getElementById('entry-modal');
+  const entryModalTitle = document.getElementById('entry-modal-title');
   const entryForm = document.getElementById('entry-form');
   const bulletPoolEl = document.getElementById('bullet-pool');
   const poolEmpty = document.getElementById('pool-empty');
@@ -154,6 +157,7 @@
       },
       bulletPool: JSON.parse(JSON.stringify(bulletPool)),
       resumeData: JSON.parse(JSON.stringify(resumeData)),
+      sectionOrder: [...sectionOrder],
       savedAt: new Date().toISOString(),
     };
   }
@@ -175,10 +179,27 @@
     bulletPool.length = 0;
     (data.bulletPool || []).forEach((item) => bulletPool.push(item));
 
+    // 恢复板块顺序（缺失或非法时回退默认）
+    if (Array.isArray(data.sectionOrder) && data.sectionOrder.length) {
+      const saved = data.sectionOrder.filter((key) => sectionConfigs[key]);
+      const missing = DEFAULT_SECTION_ORDER.filter((key) => !saved.includes(key));
+      sectionOrder = saved.concat(missing);
+    } else {
+      sectionOrder = [...DEFAULT_SECTION_ORDER];
+    }
+
     sectionOrder.forEach((key) => {
       resumeData[key] = Array.isArray(data.resumeData?.[key])
         ? JSON.parse(JSON.stringify(data.resumeData[key]))
         : [];
+    });
+
+    // 兼容旧数据：字符串 period（如 "2020.09 - 2024.06"）转为 {start,end} 结构
+    [...bulletPool, ...sectionOrder.flatMap((key) => resumeData[key])].forEach((item) => {
+      if (item && typeof item.period === 'string') {
+        const parsed = parsePeriodValue(item.period);
+        if (parsed) item.period = parsed;
+      }
     });
 
     closeEntryForm();
@@ -217,19 +238,23 @@
     enterApp(result.user, result.isNew);
   }
 
-  function handleSave() {
+  // --- 自动保存：所有改动防抖写入数据库 ---
+  let autoSaveTimer = null;
+
+  function scheduleAutoSave() {
     if (!currentUser) return;
-    const snapshot = snapshotState();
-    const result = ResumeDB.saveResume(currentUser.phone, snapshot);
-    if (!result.ok) {
-      showToast(result.error || '保存失败');
-      return;
-    }
-    currentUser = result.user;
-    showToast('已保存到数据库');
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+      if (!currentUser) return;
+      const result = ResumeDB.saveResume(currentUser.phone, snapshotState());
+      if (result.ok) currentUser = result.user;
+    }, 600);
   }
 
+  Object.values(basicFields).forEach((el) => el.addEventListener('input', scheduleAutoSave));
+
   function handleLogout() {
+    clearTimeout(autoSaveTimer);
     ResumeDB.logout();
     currentUser = null;
     applyState(emptyResumeState());
@@ -242,7 +267,6 @@
   }
 
   authForm.addEventListener('submit', handleAuthSubmit);
-  document.getElementById('btn-save').addEventListener('click', handleSave);
   document.getElementById('btn-logout').addEventListener('click', handleLogout);
 
   const englishSectionLabels = {
@@ -266,6 +290,7 @@
     renderBulletPool();
     renderResumeSections();
     showToast(resumeLanguage === 'en' ? '已切换为英文板块名' : '已切换为中文板块名');
+    scheduleAutoSave();
   });
 
   // --- Resume library ---
@@ -341,6 +366,142 @@
     }
   });
 
+  // --- 投递记录 ---
+
+  const applicationsScreen = document.getElementById('applications-screen');
+  const applicationForm = document.getElementById('application-form');
+  const applicationList = document.getElementById('application-list');
+
+  function normalizeAppLink(link) {
+    const raw = String(link || '').trim();
+    if (!raw) return '';
+    return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(raw) ? raw : `https://${raw}`;
+  }
+
+  function applicationResultBadge(app) {
+    if (app.result === 'success') return '<span class="app-badge app-badge-success">success</span>';
+    if (app.result === 'failed') return '<span class="app-badge app-badge-failed">failed</span>';
+    return '<span class="app-badge app-badge-pending">进行中</span>';
+  }
+
+  function renderApplications() {
+    if (!currentUser) return;
+    const apps = ResumeDB.listApplications(currentUser.phone);
+    if (!apps.length) {
+      applicationList.innerHTML = '<p class="application-empty">还没有投递记录，添加第一条吧</p>';
+      return;
+    }
+    const selected = (value, current) => (value === current ? ' selected' : '');
+    applicationList.innerHTML = `
+      <table class="app-table">
+        <thead>
+          <tr>
+            <th class="app-col-title">公司 / 岗位</th>
+            <th class="app-col-result">结果</th>
+            <th class="app-col-interview">面试</th>
+            <th class="app-col-note">备注</th>
+            <th class="app-col-actions">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+        ${apps.map((app) => {
+          // 有链接时标题整体可点击跳转，无链接时为纯文本
+          const titleInner = `<strong>${escapeHtml(app.company)}</strong>
+                <span class="app-position">${escapeHtml(app.position)}</span>`;
+          const titleHtml = app.link
+            ? `<a class="app-title-link" href="${escapeAttr(normalizeAppLink(app.link))}" target="_blank" rel="noopener" title="${escapeAttr(normalizeAppLink(app.link))}">${titleInner}</a>`
+            : `<div class="app-title-plain">${titleInner}</div>`;
+          return `
+          <tr class="app-row ${app.result ? `is-${app.result}` : ''}" data-app-id="${escapeAttr(app.id)}">
+            <td class="app-cell app-cell-title">${titleHtml}</td>
+            <td class="app-cell app-cell-result">
+              <span class="app-cell-label">结果</span>
+              ${applicationResultBadge(app)}
+              <select class="app-select" data-app-field="result">
+                <option value="">未定</option>
+                <option value="success"${selected('success', app.result)}>success</option>
+                <option value="failed"${selected('failed', app.result)}>failed</option>
+              </select>
+            </td>
+            <td class="app-cell app-cell-interview">
+              <span class="app-cell-label">面试</span>
+              <select class="app-select" data-app-field="interview">
+                <option value="">未选择</option>
+                <option value="yes"${selected('yes', app.interview)}>有</option>
+                <option value="no"${selected('no', app.interview)}>无</option>
+              </select>
+            </td>
+            <td class="app-cell app-cell-note">
+              <span class="app-cell-label">备注</span>
+              <input type="text" class="app-note" data-app-field="note" placeholder="添加备注…" maxlength="200" value="${escapeAttr(app.note || '')}">
+            </td>
+            <td class="app-cell app-cell-actions">
+              <button type="button" class="btn btn-ghost btn-sm btn-danger" data-app-action="delete">删除</button>
+            </td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  function openApplications() {
+    if (!currentUser) return;
+    renderApplications();
+    appEl.hidden = true;
+    applicationsScreen.hidden = false;
+    document.getElementById('app-company').focus();
+  }
+
+  function closeApplications() {
+    applicationsScreen.hidden = true;
+    appEl.hidden = false;
+  }
+
+  document.getElementById('btn-applications').addEventListener('click', openApplications);
+  document.getElementById('btn-applications-back').addEventListener('click', closeApplications);
+
+  applicationForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    const result = ResumeDB.addApplication(currentUser.phone, {
+      company: document.getElementById('app-company').value,
+      position: document.getElementById('app-position').value,
+      link: document.getElementById('app-link').value,
+    });
+    if (!result.ok) return showToast(result.error || '添加失败');
+    currentUser = ResumeDB.getUser(currentUser.phone);
+    applicationForm.reset();
+    renderApplications();
+    showToast('已添加投递记录');
+  });
+
+  applicationList.addEventListener('change', (e) => {
+    const fieldEl = e.target.closest('[data-app-field]');
+    const item = e.target.closest('[data-app-id]');
+    if (!fieldEl || !item || !currentUser) return;
+    const patch = { [fieldEl.dataset.appField]: fieldEl.value };
+    const result = ResumeDB.updateApplication(currentUser.phone, item.dataset.appId, patch);
+    if (!result.ok) return showToast(result.error || '更新失败');
+    currentUser = ResumeDB.getUser(currentUser.phone);
+    // 重渲染以刷新状态徽标，同时保持其他未提交的输入不丢失（change 事件即当前值）
+    renderApplications();
+  });
+
+  applicationList.addEventListener('click', (e) => {
+    const action = e.target.closest('[data-app-action]')?.dataset.appAction;
+    const item = e.target.closest('[data-app-id]');
+    if (!action || !item || !currentUser) return;
+    if (action === 'delete') {
+      const app = ResumeDB.listApplications(currentUser.phone).find((entry) => entry.id === item.dataset.appId);
+      if (!app) return showToast('该记录已不存在');
+      if (!window.confirm(`确定删除「${app.company} - ${app.position}」吗？`)) return;
+      ResumeDB.deleteApplication(currentUser.phone, app.id);
+      currentUser = ResumeDB.getUser(currentUser.phone);
+      renderApplications();
+      showToast('已删除');
+    }
+  });
+
   // 仓库里的简历独立导出：临时套用其状态生成 PDF，不影响当前工作区
   function exportLibraryResumeAsPdf(work) {
     const previousSnapshot = snapshotState();
@@ -382,6 +543,170 @@
     });
   });
 
+  // --- 起止时间（仅年月）解析与格式化 ---
+
+  const MONTH_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const MONTH_EN_MAP = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+
+  // 兼容旧数据："2026.07 - 2026.09" / "Sep 2026 - Jun 2027" → { start:{y,m}, end:{y,m} }
+  // 结束为"至今 / Present"时：end = 'present'
+  function parsePeriodValue(str) {
+    if (!str || typeof str !== 'string') return null;
+    const s = str.trim();
+
+    const isPresent = /(至今|现在|present|current|now)/i.test(s);
+
+    const zh = [...s.matchAll(/(\d{4})\s*[.\-/年]\s*(\d{1,2})/g)];
+    if (zh.length) {
+      const mk = (m) => {
+        const y = Number(m[1]);
+        const mth = Number(m[2]);
+        return (mth >= 1 && mth <= 12) ? { y, m: mth } : null;
+      };
+      const start = mk(zh[0]);
+      if (start) return { start, end: isPresent ? 'present' : (zh[1] ? mk(zh[1]) : null) };
+    }
+
+    const en = [...s.matchAll(/([A-Za-z]{3})[a-z]*\.?\s+(\d{4})/g)];
+    if (en.length) {
+      const mk = (m) => {
+        const mth = MONTH_EN_MAP[m[1].toLowerCase()];
+        return mth ? { y: Number(m[2]), m: mth } : null;
+      };
+      const start = mk(en[0]);
+      if (start) return { start, end: isPresent ? 'present' : (en[1] ? mk(en[1]) : null) };
+    }
+
+    return null;
+  }
+
+  // 结构化 period → 展示文本。zh: "2026.07 - 2026.09" / "2026.07 - 至今"；en: "Sep 2026 - Jun 2027" / "Sep 2026 - Present"
+  function formatPeriod(period, lang) {
+    if (!period) return '';
+    if (typeof period === 'string') return period; // 未识别的旧格式原样展示
+    const fmt = (p) => {
+      if (!p) return '';
+      if (p === 'present') return lang === 'en' ? 'Present' : '至今';
+      return lang === 'en'
+        ? `${MONTH_EN[p.m - 1]} ${p.y}`
+        : `${p.y}.${String(p.m).padStart(2, '0')}`;
+    };
+    return [fmt(period.start), fmt(period.end)].filter(Boolean).join(' - ');
+  }
+
+  function entryPeriodText(entry) {
+    return formatPeriod(entry?.period, entry?.lang === 'en' ? 'en' : 'zh');
+  }
+
+  function buildPeriodFieldHtml(label) {
+    const monthBtns = Array.from({ length: 12 }, (_, i) =>
+      `<button type="button" class="period-month" data-month="${i + 1}">${i + 1}月</button>`).join('');
+    const col = (side, title) => `
+      <div class="period-col" data-period-side="${side}">
+        <div class="period-col-title">${title}</div>
+        <div class="period-nav">
+          <button type="button" class="period-nav-btn" data-period-step="-1" aria-label="上一年">‹</button>
+          <span class="period-year-label" data-period-year>—</span>
+          <button type="button" class="period-nav-btn" data-period-step="1" aria-label="下一年">›</button>
+        </div>
+        <div class="period-months">${monthBtns}</div>
+        ${side === 'end' ? '<button type="button" class="period-present" data-period-present>至今 / Present</button>' : ''}
+      </div>`;
+    return `
+      <div class="form-field form-field-period">
+        <span>${label}</span>
+        <div class="period-control" data-period-control>
+          <button type="button" class="period-btn" data-period-toggle>
+            <span class="period-btn-icon" aria-hidden="true">📅</span>
+            <span class="period-btn-text" data-period-text>点击选择年月</span>
+          </button>
+          <div class="period-popover" data-period-popover hidden>
+            ${col('start', '开始')}
+            ${col('end', '结束')}
+            <button type="button" class="period-clear" data-period-clear>清除时间</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function setupPeriodControl() {
+    const control = entryForm.querySelector('[data-period-control]');
+    if (!control) return;
+
+    const popover = control.querySelector('[data-period-popover]');
+    const textEl = control.querySelector('[data-period-text]');
+    const thisYear = new Date().getFullYear();
+    const viewYear = {
+      start: formPeriod.start?.y || thisYear,
+      end: formPeriod.end?.y || thisYear,
+    };
+
+    function currentLang() {
+      return entryForm.querySelector('input[name="lang"]:checked')?.value === 'en' ? 'en' : 'zh';
+    }
+
+    function refresh() {
+      textEl.textContent = formatPeriod(formPeriod, currentLang()) || '点击选择年月';
+      ['start', 'end'].forEach((side) => {
+        const col = control.querySelector(`[data-period-side="${side}"]`);
+        const sel = formPeriod[side];
+        col.querySelector('[data-period-year]').textContent = `${viewYear[side]}年`;
+        col.querySelectorAll('.period-month').forEach((btn) => {
+          btn.classList.toggle('is-selected', !!sel && typeof sel === 'object' && Number(btn.dataset.month) === sel.m && sel.y === viewYear[side]);
+        });
+        const presentBtn = col.querySelector('[data-period-present]');
+        if (presentBtn) presentBtn.classList.toggle('is-selected', sel === 'present');
+      });
+    }
+
+    control.querySelector('[data-period-toggle]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      popover.hidden = !popover.hidden;
+      refresh();
+    });
+
+    control.querySelectorAll('[data-period-step]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const side = btn.closest('[data-period-side]').dataset.periodSide;
+        viewYear[side] += Number(btn.dataset.periodStep);
+        refresh();
+      });
+    });
+
+    control.querySelectorAll('.period-month').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const side = btn.closest('[data-period-side]').dataset.periodSide;
+        formPeriod[side] = { y: viewYear[side], m: Number(btn.dataset.month) };
+        refresh();
+      });
+    });
+
+    // 结束时间可选"至今 / Present"
+    control.querySelector('[data-period-present]')?.addEventListener('click', () => {
+      formPeriod.end = 'present';
+      refresh();
+    });
+
+    control.querySelector('[data-period-clear]').addEventListener('click', () => {
+      formPeriod.start = null;
+      formPeriod.end = null;
+      refresh();
+    });
+
+    // 切换要点语言时，按钮上的时间格式随之切换（中文 2026.07 / 英文 Sep 2026）
+    entryForm.querySelectorAll('input[name="lang"]').forEach((radio) => {
+      radio.addEventListener('change', refresh);
+    });
+
+    refresh();
+  }
+
+  // 点击选择器外部时关闭日历弹层（全局一次注册，随表单销毁自动失效）
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-period-control]')) return;
+    document.querySelectorAll('[data-period-popover]').forEach((pop) => { pop.hidden = true; });
+  });
+
   // --- Entry form ---
 
   function openEntryForm(type, entry = null) {
@@ -390,12 +715,16 @@
 
     activeFormType = type;
     editingEntryId = entry ? entry.id : null;
-    entryFormArea.hidden = false;
-    formTypeTitle.textContent = entry ? `编辑${config.label}` : config.label;
+    entryModal.hidden = false;
+    entryModalTitle.textContent = entry ? `编辑${config.label}` : `新增${config.label}`;
 
     let html = '';
 
     config.fields.forEach((field) => {
+      if (field.key === 'period') {
+        html += buildPeriodFieldHtml(field.label);
+        return;
+      }
       const value = entry ? (entry[field.key] || '') : '';
       html += `
         <label class="form-field">
@@ -413,6 +742,15 @@
         </label>`;
     }
 
+    const selectedLang = entry?.lang === 'en' ? 'en' : (entry?.lang === 'zh' ? 'zh' : activePoolLang);
+    html += `
+      <fieldset class="color-picker"><legend>要点语言</legend>
+        <div class="lang-options">
+          <label class="lang-option"><input type="radio" name="lang" value="zh"${selectedLang === 'zh' ? ' checked' : ''}><span>中文</span></label>
+          <label class="lang-option"><input type="radio" name="lang" value="en"${selectedLang === 'en' ? ' checked' : ''}><span>English</span></label>
+        </div>
+      </fieldset>`;
+
     const selectedColor = entry?.color || 'blue';
     const colors = ['red', 'orange', 'blue', 'green', 'yellow', 'purple', 'gray'];
     html += `<fieldset class="color-picker"><legend>要点框颜色</legend><div class="color-options">${colors.map((color) => `<label class="color-option color-${color}"><input type="radio" name="color" value="${color}"${selectedColor === color ? ' checked' : ''}><span aria-label="${color}"></span></label>`).join('')}</div></fieldset>`;
@@ -425,6 +763,16 @@
 
     entryForm.innerHTML = html;
 
+    // 初始化起止时间选择器（编辑时回填已选年月）
+    const initialPeriod = entry
+      ? (typeof entry.period === 'string' ? parsePeriodValue(entry.period) : entry.period)
+      : null;
+    formPeriod = {
+      start: initialPeriod?.start ? { ...initialPeriod.start } : null,
+      end: initialPeriod?.end === 'present' ? 'present' : (initialPeriod?.end ? { ...initialPeriod.end } : null),
+    };
+    setupPeriodControl();
+
     entryForm.querySelector('#btn-cancel-form').addEventListener('click', closeEntryForm);
     entryForm.addEventListener('submit', handleFormSubmit, { once: true });
 
@@ -435,18 +783,30 @@
   function closeEntryForm() {
     activeFormType = null;
     editingEntryId = null;
-    entryFormArea.hidden = true;
+    entryModal.hidden = true;
     entryForm.innerHTML = '';
   }
+
+  entryModal.querySelectorAll('[data-entry-close]').forEach((el) => {
+    el.addEventListener('click', closeEntryForm);
+  });
 
   function buildEntryFromForm(type) {
     const config = sectionConfigs[type];
     const formData = new FormData(entryForm);
-    const entry = { type, color: formData.get('color') || 'blue' };
+    const entry = { type, color: formData.get('color') || 'blue', lang: formData.get('lang') === 'en' ? 'en' : 'zh' };
 
     config.fields.forEach((field) => {
+      if (field.key === 'period') return; // 起止时间来自日历选择器
       entry[field.key] = (formData.get(field.key) || '').trim();
     });
+
+    entry.period = (formPeriod.start || formPeriod.end)
+      ? {
+          start: formPeriod.start ? { ...formPeriod.start } : null,
+          end: formPeriod.end === 'present' ? 'present' : (formPeriod.end ? { ...formPeriod.end } : null),
+        }
+      : null;
 
     if (config.textarea) {
       const raw = (formData.get(config.textarea.key) || '').trim();
@@ -493,6 +853,7 @@
       closeEntryForm();
       renderBulletPool();
       renderResumeSections();
+      scheduleAutoSave();
       return;
     }
 
@@ -500,6 +861,7 @@
     bulletPool.push(entry);
     closeEntryForm();
     renderBulletPool();
+    scheduleAutoSave();
   }
 
   // --- Entry helpers ---
@@ -508,14 +870,14 @@
     switch (type) {
       case 'education': {
         const main = [entry.school, entry.major, entry.degree].filter(Boolean).join(' · ');
-        return { main, sub: entry.period || '' };
+        return { main, sub: entryPeriodText(entry) };
       }
       case 'internship':
-        return { main: [entry.company, entry.role].filter(Boolean).join(' · '), sub: entry.period || '' };
+        return { main: [entry.company, entry.role].filter(Boolean).join(' · '), sub: entryPeriodText(entry) };
       case 'projects':
-        return { main: [entry.name, entry.role].filter(Boolean).join(' · '), sub: entry.period || '' };
+        return { main: [entry.name, entry.role].filter(Boolean).join(' · '), sub: entryPeriodText(entry) };
       case 'clubs':
-        return { main: [entry.org, entry.role].filter(Boolean).join(' · '), sub: entry.period || '' };
+        return { main: [entry.org, entry.role].filter(Boolean).join(' · '), sub: entryPeriodText(entry) };
       case 'skills':
         return { main: entry.category || '', sub: '' };
       case 'hobbies':
@@ -625,11 +987,22 @@
     renderBulletPool();
   });
 
+  const poolLangFilters = document.getElementById('pool-lang-filters');
+
+  poolLangFilters.addEventListener('click', (e) => {
+    const button = e.target.closest('[data-lang]');
+    if (!button) return;
+    activePoolLang = button.dataset.lang === 'en' ? 'en' : 'zh';
+    poolLangFilters.querySelectorAll('.pool-filter').forEach((item) => item.classList.toggle('is-active', item === button));
+    renderBulletPool();
+  });
+
   function renderBulletPool() {
     bulletPoolEl.querySelectorAll('.bullet-item').forEach((el) => el.remove());
-    const visibleEntries = activePoolFilter === 'all' ? bulletPool : bulletPool.filter((entry) => entry.type === activePoolFilter);
+    const langEntries = bulletPool.filter((entry) => (entry.lang || 'zh') === activePoolLang);
+    const visibleEntries = activePoolFilter === 'all' ? langEntries : langEntries.filter((entry) => entry.type === activePoolFilter);
     poolEmpty.hidden = visibleEntries.length > 0;
-    poolEmpty.textContent = bulletPool.length ? '该类别暂无要点' : '暂无要点，点击「增加要点」添加';
+    poolEmpty.textContent = langEntries.length ? '该类别暂无要点' : '暂无该语言要点，点击「增加要点」添加';
 
     visibleEntries.forEach((entry) => {
       const el = document.createElement('div');
@@ -655,6 +1028,7 @@
         e.stopPropagation();
         removeEntryFromLocation(entry.id);
         renderBulletPool();
+        scheduleAutoSave();
       });
 
       bulletPoolEl.appendChild(el);
@@ -666,7 +1040,7 @@
   function renderResumeSections() {
     resumeSections.innerHTML = '';
 
-    sectionOrder.forEach((section) => {
+    sectionOrder.forEach((section, index) => {
       const entries = resumeData[section];
       const config = sectionConfigs[section];
 
@@ -686,7 +1060,13 @@
       });
 
       sectionEl.innerHTML = `
-        <h3 class="section-title">${sectionLabel(section)}</h3>
+        <h3 class="section-title">
+          <span class="section-title-text">${sectionLabel(section)}</span>
+          <span class="section-move-actions">
+            <button type="button" class="btn-section-move" data-move="up" data-section="${section}" aria-label="上移板块"${index === 0 ? ' disabled' : ''}>↑</button>
+            <button type="button" class="btn-section-move" data-move="down" data-section="${section}" aria-label="下移板块"${index === sectionOrder.length - 1 ? ' disabled' : ''}>↓</button>
+          </span>
+        </h3>
         <div class="section-body drop-zone" data-section="${section}">${bodyHtml}</div>`;
 
       resumeSections.appendChild(sectionEl);
@@ -696,10 +1076,28 @@
       const section = el.closest('.drop-zone').dataset.section;
       setupDrag(el, section);
       setupEntryDropTarget(el, section);
+
+      el.querySelector('.entry-content').addEventListener('click', () => {
+        if (justDragged) return;
+        const found = findEntry(el.dataset.entryId);
+        if (found) openEntryForm(found.entry.type, found.entry);
+      });
     });
 
     resumeSections.querySelectorAll('.drop-zone').forEach((zone) => {
       setupDropZone(zone);
+    });
+
+    resumeSections.querySelectorAll('.btn-section-move').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const direction = btn.dataset.move === 'up' ? -1 : 1;
+        const index = sectionOrder.indexOf(btn.dataset.section);
+        const target = index + direction;
+        if (index < 0 || target < 0 || target >= sectionOrder.length) return;
+        [sectionOrder[index], sectionOrder[target]] = [sectionOrder[target], sectionOrder[index]];
+        renderResumeSections();
+        scheduleAutoSave();
+      });
     });
 
     resumeSections.querySelectorAll('.btn-entry-remove').forEach((btn) => {
@@ -712,6 +1110,7 @@
         bulletPool.push(found.entry);
         renderBulletPool();
         renderResumeSections();
+        scheduleAutoSave();
       });
     });
 
@@ -799,6 +1198,7 @@
       clearDropIndicators();
       renderBulletPool();
       renderResumeSections();
+      scheduleAutoSave();
     });
   }
 
@@ -842,6 +1242,7 @@
       clearDropIndicators();
       renderBulletPool();
       renderResumeSections();
+      scheduleAutoSave();
     });
   }
 
@@ -869,6 +1270,7 @@
     bulletPool.push(found.entry);
     renderBulletPool();
     renderResumeSections();
+    scheduleAutoSave();
   });
 
   // --- Preview ---
@@ -968,6 +1370,7 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (!entryModal.hidden) closeEntryForm();
       if (!previewModal.hidden) closePreview();
       if (!libraryModal.hidden) closeLibrary();
       addMenu.hidden = true;
@@ -1050,6 +1453,7 @@
   btnRemovePhoto.addEventListener('click', () => {
     photoData = '';
     syncPhotoUI();
+    scheduleAutoSave();
   });
 
   photoInput.addEventListener('change', () => {
@@ -1212,6 +1616,7 @@
     try { URL.revokeObjectURL(cropImg.currentSrc || ''); } catch (_) {}
     cropImg.removeAttribute('src');
     cropState = null;
+    scheduleAutoSave();
   }
 
   btnCropConfirm.addEventListener('click', doCrop);
